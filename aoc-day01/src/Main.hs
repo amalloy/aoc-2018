@@ -21,8 +21,10 @@ part2 :: [String] -> Maybe Int
 part2 = firstDup . scanl (+) 0 . cycle . map parse
 
 main :: IO ()
-main = do
-  file <- getContents
-  let contents = lines file
-  print (part1 contents)
-  print (part2 contents)
+-- main = do
+--   file <- getContents
+--   let contents = lines file
+--   print (part1 contents)
+--   print (part2 contents)
+
+main = interact $ show . ((,) <$> part1 <*> part2) . lines
