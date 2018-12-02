@@ -2,6 +2,7 @@ module Main where
 
 import Control.Arrow ((&&&))
 import qualified Data.Map as M
+import Data.Maybe (catMaybes)
 
 type Input = [String]
 
@@ -16,8 +17,15 @@ part1 words = let freqs = map (M.toList . frequencies) words
               in has 2 * has 3
 
 
-part2 :: Input -> Int
-part2 x = 0
+part2 :: Input -> Maybe String
+part2 [] = Nothing
+part2 (word:more) = case filter (match word) more of
+                      [] -> part2 more
+                      [hit] -> Just . catMaybes $ zipWith trim word hit
+                      _ -> Nothing
+  where match x y = (== 1) . length . filter not $ zipWith (==) x y
+        trim x y | x == y = Just x
+                 | otherwise = Nothing
 
 parse :: String -> Input
 parse = lines
