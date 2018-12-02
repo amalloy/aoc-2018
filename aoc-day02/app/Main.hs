@@ -7,9 +7,11 @@ import Data.Maybe (catMaybes)
 type Input = [String]
 
 frequencies :: Ord a => [a] -> M.Map a Int
-frequencies = go M.empty
-  where go m [] = m
-        go m (x:xs) = go (M.insertWith (+) x 1 m) xs
+-- frequencies = go M.empty
+--   where go m [] = m
+--         go m (x:xs) = go (M.insertWith (+) x 1 m) xs
+frequencies = foldr (\x m -> M.insertWith (+) x 1 m) M.empty
+-- frequencies = foldr (flip (M.insertWith (+)) 1) M.empty
 
 part1 :: Input -> Int
 part1 words = let freqs = map (M.toList . frequencies) words
