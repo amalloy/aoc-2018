@@ -2,6 +2,7 @@ module Main where
 
 import Control.Arrow ((&&&))
 import Data.List (foldl')
+import Control.Monad (guard)
 import qualified Data.Map.Strict as M
 import Text.Parsec.Char (spaces, digit, char)
 import Text.Parsec.String (Parser)
@@ -34,17 +35,24 @@ claim = do
   (w, h) <- pair 'x'
   pure $ Claim' (Id id) (X x) (Y y) (L (X w)) (L (Y h))
 
-part1 :: Input -> Int
-part1 claims = let inputs = do
-                     Claim' _ (X x) (Y y) (L (X w)) (L (Y h)) <- claims
-                     cx <- [x..x + w-1]
-                     cy <- [y..y + h-1]
-                     pure (X cx, Y cy)
-                   freqs = foldl' (\m coord -> M.insertWith (+) coord 1 m) M.empty inputs
-               in length . filter (> 1) . M.elems $ freqs
+locations :: Claim' -> [(XCoord, YCoord)]
+locations (Claim' _ (X x) (Y y) (L (X w)) (L (Y h))) = do
+  cx <- [x..x + w-1]
+  cy <- [y..y + h-1]
+  pure (X cx, Y cy)
 
-part2 :: Input -> Int
-part2 = const 1
+frequencies :: [Claim'] -> Sheet
+frequencies claims = foldl' (\m coord -> M.insertWith (+) coord 1 m) M.empty $ claims >>= locations
+
+part1 :: Input -> Int
+part1 = length . filter (> 1) . M.elems . frequencies
+
+part2 :: Input -> [Int]
+part2 claims = let freqs = frequencies claims
+               in do
+  c@(Claim' (Id id) _ _ _ _) <- claims
+  guard $ all ((== Just 1) . (freqs M.!?)) (locations c)
+  pure id
 
 readClaim :: String -> Either ParseError Claim'
 readClaim = parse claim "stdin"
