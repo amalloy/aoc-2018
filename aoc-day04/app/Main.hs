@@ -61,20 +61,22 @@ sleepTimes = go 0
 frequencies :: Ord k => [k] -> M.Map k Int
 frequencies = foldl' (\m x -> M.insertWith (+) x 1 m) M.empty
 
+mostCommon :: Ord v => M.Map k v -> k
+mostCommon = fst . maximumBy (comparing snd) . M.toList
+
 part1 :: Input -> Int
 part1 entries = let minutes = fmap (fmap minute) (sleepTimes entries)
                     sleepiness = frequencies (map fst minutes)
-                    (id, _) = mostCommon sleepiness
+                    id = mostCommon sleepiness
                     napTime = frequencies . map snd . filter ((== id) . fst) $ minutes
-                    (min, _) = mostCommon napTime
+                    min = mostCommon napTime
                 in id * min
-  where mostCommon = maximumBy (comparing snd) . M.toList
-
 
 part2 :: Input -> Int
-part2 = undefined
-
-
+part2 entries = let minutes = fmap (fmap minute) (sleepTimes entries)
+                    sleepiness = frequencies minutes
+                    (id, min) = mostCommon sleepiness
+                in id * min
 
 main :: IO ()
 main = interact $ show . fmap (part1 &&& part2) .
