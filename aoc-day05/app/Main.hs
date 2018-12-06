@@ -22,7 +22,6 @@ collapse s | s == s' = s
            | otherwise = collapse s'
   where s' = next s
 
-
 part1 :: Input -> Int
 part1 = length . collapse
 
