@@ -1,38 +1,50 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Main where
 
 import Control.Arrow ((&&&))
-import Control.Monad.ST (ST, runST)
-import Data.Array.MArray (newArray, readArray, writeArray, getAssocs)
-import Data.Array.ST (STArray)
-import Data.Set (Set, fromList)
+import Data.Function (on)
+import Data.List (group, groupBy, sortBy, sort, minimum, maximum, maximumBy)
+import Data.Ord (comparing)
+import qualified Data.Set as S
 
 type Coord = (Int, Int)
-newtype Id = Id Int deriving (Eq, Ord, Show)
-newtype Distance = Distance Int deriving (Eq, Ord, Show)
-newtype Progress = Progress (Maybe (Distance, [Id])) deriving (Show)
-type Grid s = STArray s Coord Progress
+type Destination = (Id, Coord)
+newtype Distance = Dist Int deriving (Eq, Ord, Show)
+newtype Id = Id Int deriving (Eq, Ord, Show, Enum)
 
-data Cursor = Cursor Distance Coord Id deriving (Eq, Ord, Show)
 
-type Input = [Coord]
+type Input = [Destination]
 
-solve :: (Coord, Coord) -> ST s String
-solve bounds = do
-  grid <- newArray bounds (Progress Nothing) :: ST s (Grid s)
+distance :: Coord -> Coord -> Distance
+distance (x, y) (x', y') = Dist $ abs (x - x') + abs (y - y')
 
-  show <$> getAssocs grid
+bounds :: [Destination] -> (Coord, Coord)
+bounds dests = ((minX, minY), (maxX, maxY))
+  where points = map snd dests
+        [minX, minY, maxX, maxY] = do
+          cmp <- [minimum, maximum]
+          lookup <- [fst, snd]
+          pure . cmp . map lookup $ points
 
-part1 :: Input -> String
-part1 coords = let [minX, minY, maxX, maxY] = do
-                     cmp <- [minimum, maximum]
-                     lookup <- [fst, snd]
-                     pure . cmp . map lookup $ coords
-               in runST $ solve ((minX, minY), (maxX, maxY))
+part1 :: Input -> Int
+part1 dests = let (owners, infinities) = foldMap consider points
+                  candidates = filter (`S.notMember` infinities) owners
+              in maximum . map length . group . sort $ candidates
+  where ((minX,minY),(maxX,maxY)) = bounds dests
+        points = [(x,y) | x <- [minX..maxX], y <- [minY..maxY]]
+        infinite (x, y) = x `elem` [minX,maxX] || y `elem` [minY,maxY]
+        consider point = let dists = map (fmap (distance point)) dests
+                             closests = head . groupBy ((==) `on` snd) . sortBy (comparing snd) $ dists
+                         in case closests of
+                              [(id, dist)] -> ([id], S.fromList [id | infinite point])
+                              _ -> mempty
+
+
 
 
 
 part2 :: Input -> Int
-part2 = undefined
+part2 = const 0
 
 parse :: String -> [Coord]
 parse = map parseLine . lines
@@ -40,4 +52,4 @@ parse = map parseLine . lines
           (x, (_:y)) -> (read x, read y)
 
 main :: IO ()
-main = interact $ show . (part1 &&& part2) . parse
+main = interact $ show . (part1 &&& part2) . zip [Id 0..] . parse
