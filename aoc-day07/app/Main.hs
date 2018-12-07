@@ -20,7 +20,6 @@ runnable rules done = listToMaybe . sort $ do
   guard $ prereqs `S.isSubsetOf` done
   pure goal
 
-
 part1 :: RuleSet -> String
 part1 = go S.empty
   where go done rules | M.null rules = ""
@@ -32,7 +31,7 @@ timeNeeded c = 61 + ord c - ord 'A'
 
 part2 :: RuleSet -> Int
 part2 = go S.empty 5 []
-  where go done workers pending rules | M.null rules && null pending = 0
+  where go done workers pending rules | M.null rules = maximum $ map remaining pending
                                       | otherwise = case find ((== 0) . remaining) pending of
                                           Just (Task j _) -> go (S.insert j done)
                                                                 (workers + 1)
@@ -40,7 +39,10 @@ part2 = go S.empty 5 []
                                                                 rules
                                           Nothing | workers > 0 -> case runnable rules done of
                                                       Nothing -> advanceTime
-                                                      (Just c) -> go done (workers - 1) (Task c (timeNeeded c) : pending) (M.delete c rules)
+                                                      (Just c) -> go done
+                                                                     (workers - 1)
+                                                                     (Task c (timeNeeded c) : pending)
+                                                                     (M.delete c rules)
                                                   | otherwise -> advanceTime
           where advanceTime = 1 + go done workers (map tick pending) rules
                 tick (Task j t) = Task j (t - 1)
