@@ -1,25 +1,53 @@
 module Main where
 
 import Text.Regex.Applicative (string, anySym, (=~))
-import Data.List (minimum)
+import Data.Char (ord)
+import Data.List (minimum, find, sort)
+import Data.Maybe (listToMaybe)
 import qualified Data.Map.Strict as M
 import qualified Data.Set as S
 import Control.Arrow ((&&&))
 import Control.Monad (guard)
+
+type Time = Int
 data Rule = Rule {prereq, goal :: Char} deriving Show
 type RuleSet = M.Map Char (S.Set Char)
+data Task = Task {job :: Char, remaining :: Time}
+
+runnable :: RuleSet -> S.Set Char -> Maybe Char
+runnable rules done = listToMaybe . sort $ do
+  (goal, prereqs) <- M.assocs rules
+  guard $ prereqs `S.isSubsetOf` done
+  pure goal
+
 
 part1 :: RuleSet -> String
 part1 = go S.empty
   where go done rules | M.null rules = ""
                       | otherwise = c : go (S.insert c done) (M.delete c rules)
-          where c = minimum $ do
-                  (goal, prereqs) <- M.assocs rules
-                  guard $ prereqs `S.isSubsetOf` done
-                  pure goal
+          where (Just c) = runnable rules done
 
-part2 :: RuleSet -> Int
-part2 = const 0
+timeNeeded :: Char -> Time
+timeNeeded c = 61 + ord c - ord 'A'
+
+part2 :: RuleSet -> String
+part2 = go S.empty 5 []
+  where go done workers pending rules | M.null rules && null pending = ""
+                                      | otherwise = case find ((== 0) . remaining) pending of
+                                          Just (Task j _) -> go (S.insert j done)
+                                                                (workers + 1)
+                                                                (filter ((/= j) . job) pending)
+                                                                rules
+                                          Nothing | workers > 0 -> case runnable rules done of
+                                                      Nothing -> advanceTime
+                                                      (Just c) -> c : go done (workers - 1) (Task c (timeNeeded c) : pending) (M.delete c rules)
+                                                  | otherwise -> advanceTime
+          where advanceTime = go done workers (map tick pending) rules
+                tick (Task j t) = Task j (t - 1)
+
+
+
+
 
 parse :: String -> Maybe Rule
 parse = (=~ regex)
