@@ -8,7 +8,7 @@ import Text.Parsec.Char (spaces, digit, char)
 import Text.Parsec.String (Parser)
 import Text.Parsec (parse, many1, sepEndBy1)
 
-data Node a = Node {metadata :: [a], children :: [Node a]} deriving (Show, Functor, Foldable)
+data Node a = Node {children :: [Node a], metadata :: [a]} deriving (Show, Functor, Foldable)
 
 int :: Parser Int
 int = read <$> many1 digit
@@ -18,9 +18,7 @@ node = do
   numChildren <- int
   spaces
   numMeta <- int
-  children <- replicateM numChildren (spaces *> node)
-  meta <- replicateM numMeta (spaces *> int)
-  pure $ Node meta children
+  Node <$> replicateM numChildren (spaces *> node) <*> replicateM numMeta (spaces *> int)
 
 type Input = Node Int
 
