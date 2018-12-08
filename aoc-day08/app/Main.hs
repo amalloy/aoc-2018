@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveFoldable #-}
+{-# LANGUAGE DeriveFunctor #-}
 module Main where
 
 import Control.Arrow ((&&&))
@@ -6,12 +8,12 @@ import Text.Parsec.Char (spaces, digit, char)
 import Text.Parsec.String (Parser)
 import Text.Parsec (parse, many1, sepEndBy1)
 
-data Node = Node {metadata :: [Int], children :: [Node]} deriving Show
+data Node a = Node {metadata :: [a], children :: [Node a]} deriving (Show, Functor, Foldable)
 
 int :: Parser Int
 int = read <$> many1 digit
 
-node :: Parser Node
+node :: Parser (Node Int)
 node = do
   numChildren <- int
   spaces
@@ -20,10 +22,10 @@ node = do
   meta <- replicateM numMeta (spaces *> int)
   pure $ Node meta children
 
-type Input = Node
+type Input = Node Int
 
 part1 :: Input -> Int
-part1 (Node meta children) = sum meta + sum (map part1 children)
+part1 = sum
 
 part2 :: Input -> Int
 part2 = undefined
