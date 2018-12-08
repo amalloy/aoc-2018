@@ -4,6 +4,7 @@ module Main where
 
 import Control.Arrow ((&&&))
 import Control.Monad (replicateM)
+import qualified Data.IntMap.Lazy as M
 import Text.Parsec.Char (spaces, digit, char)
 import Text.Parsec.String (Parser)
 import Text.Parsec (parse, many1, sepEndBy1)
@@ -26,8 +27,9 @@ part1 :: Input -> Int
 part1 = sum
 
 part2 :: Input -> Int
-part2 = undefined
-
+part2 (Node [] m) = sum m
+part2 (Node cs m) = let childValues = M.fromList . zip [1..] . map part2 $ cs
+                    in sum . map (flip (M.findWithDefault 0) childValues) $ m
 
 main :: IO ()
 main = interact $ show . fmap (part1 &&& part2) . parse node "stdin"
