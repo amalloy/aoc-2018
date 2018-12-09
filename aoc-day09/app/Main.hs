@@ -61,7 +61,7 @@ part1 = go . initialGame
              | otherwise = go (turn g)
 
 part2 :: Input -> Int
-part2 = undefined
+part2 (Input players lastMarble) = part1 (Input players (100 * lastMarble))
 
 parse :: String -> Input
 parse s = let ws = map read . words . head . lines $ s
