@@ -52,11 +52,6 @@ part1 points = go 10000 $ map (stepTimeBy 10000) points
                            else keepGoing
            where keepGoing = go (t + 1) $ map (stepTimeBy 1) points
 
-
-
-part2 :: Input -> IO ()
-part2 points = pure ()
-
 parse :: String -> Maybe Point
 parse = (=~ r)
   where r = Point <$> point "position" <* sym ' ' <*> point "velocity"
@@ -69,4 +64,3 @@ main = do
   [file] <- getArgs
   points <- traverse parse . lines <$> readFile file
   mapM_ part1 points
-  mapM_ part2 points
