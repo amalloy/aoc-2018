@@ -40,16 +40,17 @@ prompt s = do
   (== "y") <$> getLine
 
 part1 :: Input -> IO ()
-part1 points = go $ map (stepTimeBy 0) points
-  where go points = do let box = boundingBox points
-                       if plausibleSolution box
-                         then do putStrLn . display box $ points
-                                 done <- prompt "Look good"
-                                 if done
-                                   then pure ()
-                                   else keepGoing
-                         else keepGoing
-           where keepGoing = part1 $ map (stepTimeBy 1) points
+part1 points = go 10000 $ map (stepTimeBy 10000) points
+  where go t points = do let box = boundingBox points
+                         print t
+                         if plausibleSolution box
+                           then do putStrLn . display box $ points
+                                   done <- prompt "Look good"
+                                   if done
+                                     then pure ()
+                                     else keepGoing
+                           else keepGoing
+           where keepGoing = go (t + 1) $ map (stepTimeBy 1) points
 
 
 
