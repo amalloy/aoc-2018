@@ -14,9 +14,9 @@ data Point = Point {position, velocity:: Coord Int} deriving Show
 type Input = [Point]
 
 boundingBox :: [Point] -> BoundingBox Int
-boundingBox = fromMaybe def . foldMap (go . position)
-  where go (x, y) = Just ((Min x, Min y), (Max x, Max y))
-        def = ((Min 0, Min 0), (Max 0, Max 0))
+boundingBox = fromMaybe def . foldMap (Just . lift . position)
+  where lift (x, y) = ((Min x, Min y), (Max x, Max y))
+        def = lift (0,0)
 
 plausibleSolution :: BoundingBox Int -> Bool
 plausibleSolution ((Min x, Min y), (Max x', Max y')) = abs (x' - x) < 800 && abs (y' - y) < 80
