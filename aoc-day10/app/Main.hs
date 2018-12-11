@@ -2,30 +2,30 @@ module Main where
 
 import Control.Arrow ((&&&))
 import Control.Applicative (many)
+import Data.Maybe (fromMaybe)
+import Data.Semigroup (Min(..), Max(..))
 import Data.List (maximum, minimum)
 import System.Environment (getArgs)
 import Text.Regex.Applicative (string, sym, psym, (=~))
 
 type Coord a = (a, a)
-type BoundingBox a = (Coord a, Coord a)
+type BoundingBox a = (Coord (Min Int), Coord (Max Int))
 data Point = Point {position, velocity:: Coord Int} deriving Show
 type Input = [Point]
 
 boundingBox :: [Point] -> BoundingBox Int
-boundingBox points = ((minimum . map fst $ ps,
-                       minimum . map snd $ ps),
-                      (maximum . map fst $ ps,
-                       maximum . map snd $ ps))
-  where ps = map position points
+boundingBox = fromMaybe def . foldMap (go . position)
+  where go (x, y) = Just ((Min x, Min y), (Max x, Max y))
+        def = ((Min 0, Min 0), (Max 0, Max 0))
 
 plausibleSolution :: BoundingBox Int -> Bool
-plausibleSolution ((x, y), (x', y')) = abs (x' - x) < 800 && abs (y' - y) < 80
+plausibleSolution ((Min x, Min y), (Max x', Max y')) = abs (x' - x) < 800 && abs (y' - y) < 80
 
 stepTimeBy :: Int -> Point -> Point
 stepTimeBy dt (Point (x, y) v@(dx, dy)) = Point (x + dx * dt, y + dy * dt) v
 
 display :: BoundingBox Int -> [Point] -> String
-display ((minx, miny), (maxx, maxy)) ps = unlines $ do
+display ((Min minx, Min miny), (Max maxx, Max maxy)) ps = unlines $ do
   y <- [miny..maxy]
   pure $ do
     x <- [minx..maxx]
