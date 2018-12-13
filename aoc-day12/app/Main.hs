@@ -15,12 +15,14 @@ type Transition = M.Map (Five Bool) Bool
 on :: Char -> Bool
 on = (== '#')
 
-part1 :: Input -> Int
-part1 (Input init r) = let finalState = iterate (step r) init !! 20
-                       in sum [i | Ix i True <- finalState]
+score :: [Indexed Bool] -> Int
+score pots = sum [i | Ix i True <- pots]
 
-part2 :: Input -> Int
-part2 s = 0
+part1 :: Input -> Int
+part1 (Input init r) = score $ iterate (step r) init !! 100
+
+part2 :: Input -> [Int]
+part2 (Input init r) = (zipWith (flip (-)) <*> tail) . map score . take 200 . iterate (step r) $ init
 
 window :: Int -> [a] -> [[a]]
 window n = takeWhile ((== n) . length) . transpose . take n . tails
@@ -50,7 +52,6 @@ parse s = let (header:_:rules) = lines s
               initState = zipWith Ix [0..] . map on $ pots
               transition = M.fromList . map parseRule $ rules
           in Input initState transition
-
 
 main :: IO ()
 main = interact $ show . (part1 &&& part2) . parse
