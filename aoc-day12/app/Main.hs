@@ -2,27 +2,33 @@
 module Main where
 
 import Control.Arrow ((&&&))
+import Data.Bool (bool)
 import Data.List (tails, transpose)
 import qualified Data.Map as M
 
-data Input = Input [Indexed Bool] Transition deriving Show
+data Indexed a = Ix {ix :: Int, v :: a} deriving (Show, Functor)
+type Pots = [Indexed Bool]
 
 type Five a = (a,a,a,a,a)
 type Rule a = (Five a, a)
-data Indexed a = Ix {ix :: Int, v :: a} deriving (Show, Functor)
 type Transition = M.Map (Five Bool) Bool
+data Input = Input Pots Transition deriving Show
 
 on :: Char -> Bool
 on = (== '#')
 
-score :: [Indexed Bool] -> Int
+score :: Pots -> Int
 score pots = sum [i | Ix i True <- pots]
+
+draw :: Pots -> String
+draw s = (show . ix . head $ r) ++ map (bool '.' '#' . v) r
+  where r = dropWhile (not . v) s
 
 part1 :: Input -> Int
 part1 (Input init r) = score $ iterate (step r) init !! 100
 
-part2 :: Input -> [Int]
-part2 (Input init r) = (zipWith (flip (-)) <*> tail) . map score . take 200 . iterate (step r) $ init
+part2 :: Input -> IO ()
+part2 (Input init r) = (mapM_ (putStrLn . draw) . take 200 . iterate (step r)) init
 
 window :: Int -> [a] -> [[a]]
 window n = takeWhile ((== n) . length) . transpose . take n . tails
@@ -30,7 +36,7 @@ window n = takeWhile ((== n) . length) . transpose . take n . tails
 stub :: Int -> Int -> a -> [Indexed a]
 stub from to x = [Ix i x | i <- [from..to]]
 
-step :: Transition -> [Indexed Bool] -> [Indexed Bool]
+step :: Transition -> Pots -> Pots
 step r xs = let ((Ix i _):more) = xs
                 (Ix j _) = last xs
                 prev = stub (i-4) (i-1) False
@@ -54,4 +60,7 @@ parse s = let (header:_:rules) = lines s
           in Input initState transition
 
 main :: IO ()
-main = interact $ show . (part1 &&& part2) . parse
+main = do
+  input <- parse <$> getContents
+  print (part1 input)
+  part2 input
