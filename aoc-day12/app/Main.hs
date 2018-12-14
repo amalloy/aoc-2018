@@ -25,7 +25,7 @@ draw s = (show . ix . head $ r) ++ map (bool '.' '#' . v) r
   where r = dropWhile (not . v) s
 
 part1 :: Input -> Int
-part1 (Input init r) = score $ iterate (step r) init !! 100
+part1 (Input init r) = score $ iterate (step r) init !! 200
 
 part2 :: Input -> IO ()
 part2 (Input init r) = (mapM_ (putStrLn . draw) . take 200 . iterate (step r)) init
