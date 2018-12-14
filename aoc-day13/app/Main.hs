@@ -1,9 +1,15 @@
 module Main where
 
 import Control.Arrow ((&&&))
+import Control.Monad (when)
 import Control.Monad.ST (ST, runST)
-import Data.Array.MArray (newListArray, readArray, writeArray, getAssocs)
+import Data.Array.MArray (newArray, readArray, writeArray, getAssocs)
 import Data.Array.ST (STArray)
+import Data.List (groupBy)
+import Data.Function (on)
+import Data.Semigroup (Max(..))
+import qualified Data.Set as S
+import Debug.Trace
 
 type Coord = (Int, Int) -- Y, X because it sorts best
 data Direction = North | West | South | East deriving (Show, Enum)
@@ -12,8 +18,9 @@ data Cart = Cart {heading :: Direction, plan :: Turn} deriving Show
 data Curve = SEWN | NEWS deriving (Show, Enum)
 data Terrain = Empty | Straight | Intersection | Curve Curve deriving Show
 data Tile = Tile Terrain (Maybe Cart) deriving Show
+type Grid s = STArray s Coord Tile
 
-type Input = (Coord, [Tile])
+type Input = [(Coord, Tile)]
 
 parseTile :: Char -> Maybe Tile
 parseTile c = case c of
@@ -33,9 +40,9 @@ parseTile c = case c of
 
 nextPlan :: Turn -> Turn
 nextPlan t = case t of
-  GoStraight -> TurnLeft
-  TurnLeft -> TurnRight
-  TurnRight -> GoStraight
+  TurnLeft -> GoStraight
+  GoStraight -> TurnRight
+  TurnRight -> TurnLeft
 
 turn :: Turn -> Direction -> Direction
 turn GoStraight x = x
@@ -69,7 +76,66 @@ bounce NEWS d = case d of
   West -> South
   South -> West
 
-part1 = id
+showGrid :: [(Coord, Tile)] -> String
+showGrid = unlines . map showLine . map (map snd) . groupBy ((==) `on` (fst . fst))
+  where showLine :: [Tile] -> String
+        showLine = map showTile
+        showTile :: Tile -> Char
+        showTile (Tile _ (Just c)) = case heading c of
+          West -> '<'
+          North -> '^'
+          East -> '>'
+          South -> 'v'
+        showTile (Tile t Nothing) = case t of
+          Curve NEWS -> '/'
+          Curve SEWN -> '\\'
+          Intersection -> '+'
+          _ -> ' '
+
+moveOneCart :: Grid s -> Coord -> ST s (Either Coord Coord)
+moveOneCart g pos = do
+  Tile t (Just c@(Cart h p)) <- readArray g pos
+  let pos' = translate h pos
+  Tile t' c' <- readArray g pos'
+  case c' of
+    Just _ -> pure . Left $ pos'
+    Nothing -> do
+      writeArray g pos $ Tile t Nothing
+      let newCart = case t' of
+            Intersection -> Cart (turn p h) (nextPlan p)
+            Curve curve -> Cart (bounce curve h) p
+            _ -> c
+      writeArray g pos' $ Tile t' (Just newCart)
+      pure . Right $ pos'
+
+runOneTick :: Grid s -> S.Set Coord -> ST s (Either Coord (S.Set Coord))
+runOneTick g carts = do
+  let moves = map (moveOneCart g) . S.toList $ carts
+  results <- sequenceA moves
+  pure . fmap S.fromList . sequenceA $ results
+
+debug = False
+
+runUntilCrash :: Grid s -> S.Set Coord -> ST s Coord
+runUntilCrash g = go
+  where go carts = do
+          when debug $ do
+            assocs <- getAssocs g
+            trace (showGrid assocs)$ pure ()
+          result <- runOneTick g carts
+          case result of
+            Left crash -> pure crash
+            Right carts' -> go carts'
+
+part1 tiles = runST $ do
+  a <- newArray ((0, 0), bounds) $ Tile Empty Nothing
+  mapM_ (uncurry $ writeArray a) tiles
+  assocs <- getAssocs a
+  let hasCarts = S.fromList [ix | (ix, Tile _ (Just _)) <- assocs]
+  (y, x) <- runUntilCrash a hasCarts
+  pure (x, y)
+  where bounds = (maximum . map fst $ coords, maximum . map snd $ coords)
+        coords = map fst tiles
 
 part2 :: Input -> Int
 part2 = const 0
@@ -77,12 +143,11 @@ part2 = const 0
 parse :: String -> Maybe Input
 parse = go (0, 0) . lines
   where go :: Coord -> [String] -> Maybe Input
-        go pos [] = Just (pos, [])
-        go (y, _) ([]:xs) = go (y + 1, 0) xs
-        go (x, y) ((c:cs):more) = do
+        go (y, x) [] = Just []
+        go (y, x) ([]:xs) = go (y + 1, 0) xs
+        go (y, x) ((c:cs):more) = do
           tile <- parseTile c
-          fmap (tile :) <$> go (x + 1, y) (cs:more)
-
+          (((y, x), tile) :) <$> go (y, x + 1) (cs:more)
 
 
 main :: IO ()
