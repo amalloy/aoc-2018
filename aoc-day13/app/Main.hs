@@ -2,16 +2,18 @@ module Main where
 
 import Control.Arrow ((&&&))
 import Control.Monad.ST (ST, runST)
-import Data.Array.MArray (newArray, readArray, writeArray, getAssocs)
+import Data.Array.MArray (newListArray, readArray, writeArray, getAssocs)
 import Data.Array.ST (STArray)
 
-type Coord = (Int, Int)
+type Coord = (Int, Int) -- Y, X because it sorts best
 data Direction = North | West | South | East deriving (Show, Enum)
 data Turn = GoStraight | TurnLeft | TurnRight deriving (Show, Enum)
 data Cart = Cart {heading :: Direction, plan :: Turn} deriving Show
-data Terrain = Empty | Straight | Intersection | WNES | ENWS deriving Show
+data Curve = SEWN | NEWS deriving (Show, Enum)
+data Terrain = Empty | Straight | Intersection | Curve Curve deriving Show
 data Tile = Tile Terrain (Maybe Cart) deriving Show
-type Input = [String]
+
+type Input = (Coord, [Tile])
 
 parseTile :: Char -> Maybe Tile
 parseTile c = case c of
@@ -19,8 +21,8 @@ parseTile c = case c of
   '|' -> tile Straight
   '-' -> tile Straight
   '+' -> tile Intersection
-  '\\' -> tile WNES
-  '/' -> tile ENWS
+  '\\' -> tile (Curve SEWN)
+  '/' -> tile (Curve NEWS)
   'v' -> cart South
   '^' -> cart North
   '>' -> cart East
@@ -49,20 +51,39 @@ turn TurnRight x = case x of
   West -> North
 
 translate :: Direction -> Coord -> Coord
-translate d (x, y) = case d of
-  North -> (x, y - 1)
-  East -> (x + 1, y)
-  South -> (x, y + 1)
-  West -> (x - 1, y)
+translate d (y, x) = case d of
+  North -> (y - 1, x)
+  East -> (y, x + 1)
+  South -> (y + 1, x)
+  West -> (y, x - 1)
 
-part1 :: Input -> Int
-part1 = undefined
+bounce :: Curve -> Direction -> Direction
+bounce SEWN d = case d of
+  South -> East
+  East -> South
+  West -> North
+  North -> West
+bounce NEWS d = case d of
+  North -> East
+  East -> North
+  West -> South
+  South -> West
+
+part1 = id
 
 part2 :: Input -> Int
-part2 = undefined
+part2 = const 0
 
-parse :: String -> Input
-parse = lines
+parse :: String -> Maybe Input
+parse = go (0, 0) . lines
+  where go :: Coord -> [String] -> Maybe Input
+        go pos [] = Just (pos, [])
+        go (y, _) ([]:xs) = go (y + 1, 0) xs
+        go (x, y) ((c:cs):more) = do
+          tile <- parseTile c
+          fmap (tile :) <$> go (x + 1, y) (cs:more)
+
+
 
 main :: IO ()
-main = interact $ show . (part1 &&& part2) . parse
+main = interact $ show . fmap (part1 &&& part2) . parse
