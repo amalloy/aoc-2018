@@ -1,10 +1,11 @@
 module Main where
 
 import Control.Arrow ((&&&))
-import Data.Coerce (coerce)
-import Data.Monoid (Sum(..))
+import Control.Monad.ST (ST, runST)
+import Data.Array.MArray (newArray, readArray, writeArray, getAssocs)
+import Data.Array.ST (STArray)
 
-type Coord = (Sum Int, Sum Int)
+type Coord = (Int, Int)
 data Direction = North | West | South | East deriving (Show, Enum)
 data Turn = GoStraight | TurnLeft | TurnRight deriving (Show, Enum)
 data Cart = Cart {heading :: Direction, plan :: Turn} deriving Show
@@ -48,12 +49,11 @@ turn TurnRight x = case x of
   West -> North
 
 translate :: Direction -> Coord -> Coord
-translate d = (delta <>)
-  where delta = coerce $ case d of
-          North -> (0, -1) :: (Int, Int)
-          East -> (1, 0)
-          South -> (0, 1)
-          West -> (-1, 0)
+translate d (x, y) = case d of
+  North -> (x, y - 1)
+  East -> (x + 1, y)
+  South -> (x, y + 1)
+  West -> (x - 1, y)
 
 part1 :: Input -> Int
 part1 = undefined
