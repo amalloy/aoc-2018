@@ -1,13 +1,14 @@
 module Main where
 
 import Control.Arrow ((&&&))
-import Control.Monad (when, foldM)
+import Control.Monad (when, foldM, forM)
 import Control.Monad.Except (ExceptT, runExceptT, throwError, catchError, lift)
 import Control.Monad.ST (ST, runST)
 import Data.Array.MArray (newArray, readArray, writeArray, getAssocs)
 import Data.Array.ST (STArray)
 import Data.List (groupBy)
 import Data.Function (on)
+import Data.Maybe (fromMaybe)
 import Data.Semigroup (Max(..))
 import qualified Data.Set as S
 import Debug.Trace
@@ -98,7 +99,9 @@ eraseCart g pos = do
   Tile t _ <- readArray g pos
   writeArray g pos $ Tile t Nothing
 
-moveOneCart :: Grid s -> Coord -> ExceptT Coord (ST s) Coord
+type CartM s a = ExceptT Coord (ST s) a
+
+moveOneCart :: Grid s -> Coord -> CartM s Coord
 moveOneCart g pos = do
   Tile t (Just c@(Cart h p)) <- lift $ readArray g pos
   lift $ eraseCart g pos
@@ -114,8 +117,16 @@ moveOneCart g pos = do
       lift . writeArray g pos' $ Tile t' (Just newCart)
       pure pos'
 
-runOneTick :: Grid s -> S.Set Coord -> ExceptT Coord (ST s) (S.Set Coord)
-runOneTick g carts = do
+type CrashHandler s = Grid s -> S.Set Coord -> Coord -> Coord -> CartM s (S.Set Coord)
+
+part1 :: CrashHandler s
+part1 _ _ _ crash = throwError crash
+
+part2 :: CrashHandler s
+part2 g carts cart crash = pure . S.difference carts . S.fromList $ [cart, crash]
+
+runOneTick :: CrashHandler s -> Grid s -> S.Set Coord -> CartM s (S.Set Coord)
+runOneTick handler g carts = do
   carts' <- foldM moveOne carts . S.toList $ carts
   case S.toList carts' of
     [x] -> throwError x
@@ -125,39 +136,20 @@ runOneTick g carts = do
           then pure carts
           else (do cart' <- moveOneCart g cart
                    pure (S.insert cart' (S.delete cart carts)))
-               `catchError` (\crash -> do
-                                lift $ eraseCart g crash
-                                pure . S.difference carts . S.fromList $ [cart, crash]
-                            )
-
-
-
+               `catchError` handler g carts cart
 
 debug = False
 
-runUntilCrash :: Grid s -> S.Set Coord -> ST s Coord
-runUntilCrash g = go
+runUntilCrash :: CrashHandler s -> Grid s -> S.Set Coord -> ST s Coord
+runUntilCrash handler g = go
   where go carts = do
           when debug $ do
             assocs <- getAssocs g
             trace (showGrid assocs)$ pure ()
-          result <- runExceptT . runOneTick g $ carts
+          result <- runExceptT . runOneTick handler g $ carts
           case result of
             Left answer -> pure answer
             Right carts' -> go carts'
-
-part1 tiles = runST $ do
-  a <- newArray ((0, 0), bounds) $ Tile Empty Nothing
-  mapM_ (uncurry $ writeArray a) tiles
-  assocs <- getAssocs a
-  let hasCarts = S.fromList [ix | (ix, Tile _ (Just _)) <- assocs]
-  (y, x) <- runUntilCrash a hasCarts
-  pure (x, y)
-  where bounds = (maximum . map fst $ coords, maximum . map snd $ coords)
-        coords = map fst tiles
-
-part2 :: Input -> Int
-part2 = const 0
 
 parse :: String -> Maybe Input
 parse = go (0, 0) . lines
@@ -170,4 +162,15 @@ parse = go (0, 0) . lines
 
 
 main :: IO ()
-main = interact $ show . fmap (part1 &&& part2) . parse
+main = do
+  tiles <- fmap (fromMaybe [] . parse) $ getContents
+  let bounds = (maximum . map fst $ coords, maximum . map snd $ coords)
+      coords = map fst tiles
+  print =<< forM [part1, part2] (\handler ->
+    pure . runST $ do
+      a <- newArray ((0, 0), bounds) $ Tile Empty Nothing
+      mapM_ (uncurry $ writeArray a) tiles
+      assocs <- getAssocs a
+      let hasCarts = S.fromList [ix | (ix, Tile _ (Just _)) <- assocs]
+      (y, x) <- runUntilCrash handler a hasCarts
+      pure (x, y))
