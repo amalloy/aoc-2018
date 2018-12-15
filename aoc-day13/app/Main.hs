@@ -1,3 +1,4 @@
+{-# LANGUAGE RankNTypes #-}
 module Main where
 
 import Control.Arrow ((&&&))
@@ -119,10 +120,10 @@ moveOneCart g pos = do
 
 type CrashHandler s = Grid s -> S.Set Coord -> Coord -> Coord -> CartM s (S.Set Coord)
 
-part1 :: CrashHandler s
+part1 :: forall s. CrashHandler s
 part1 _ _ _ crash = throwError crash
 
-part2 :: CrashHandler s
+part2 :: forall s. CrashHandler s
 part2 g carts cart crash = pure . S.difference carts . S.fromList $ [cart, crash]
 
 runOneTick :: CrashHandler s -> Grid s -> S.Set Coord -> CartM s (S.Set Coord)
@@ -166,11 +167,10 @@ main = do
   tiles <- fmap (fromMaybe [] . parse) $ getContents
   let bounds = (maximum . map fst $ coords, maximum . map snd $ coords)
       coords = map fst tiles
-  print =<< forM [part1, part2] (\handler ->
-    pure . runST $ do
-      a <- newArray ((0, 0), bounds) $ Tile Empty Nothing
-      mapM_ (uncurry $ writeArray a) tiles
-      assocs <- getAssocs a
-      let hasCarts = S.fromList [ix | (ix, Tile _ (Just _)) <- assocs]
-      (y, x) <- runUntilCrash handler a hasCarts
-      pure (x, y))
+  print . runST $ do
+    a <- newArray ((0, 0), bounds) $ Tile Empty Nothing
+    mapM_ (uncurry $ writeArray a) tiles
+    assocs <- getAssocs a
+    let hasCarts = S.fromList [ix | (ix, Tile _ (Just _)) <- assocs]
+    (y, x) <- runUntilCrash part1 a hasCarts
+    pure ((x, y) :: Coord)
