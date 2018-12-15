@@ -1,7 +1,8 @@
 module Main where
 
 import Control.Arrow ((&&&))
-import Control.Monad (when)
+import Control.Monad (when, foldM)
+import Control.Monad.Except (ExceptT, runExceptT, throwError, catchError, lift)
 import Control.Monad.ST (ST, runST)
 import Data.Array.MArray (newArray, readArray, writeArray, getAssocs)
 import Data.Array.ST (STArray)
@@ -92,27 +93,45 @@ showGrid = unlines . map showLine . map (map snd) . groupBy ((==) `on` (fst . fs
           Intersection -> '+'
           _ -> ' '
 
-moveOneCart :: Grid s -> Coord -> ST s (Either Coord Coord)
+eraseCart :: Grid s -> Coord -> ST s ()
+eraseCart g pos = do
+  Tile t _ <- readArray g pos
+  writeArray g pos $ Tile t Nothing
+
+moveOneCart :: Grid s -> Coord -> ExceptT Coord (ST s) Coord
 moveOneCart g pos = do
-  Tile t (Just c@(Cart h p)) <- readArray g pos
+  Tile t (Just c@(Cart h p)) <- lift $ readArray g pos
+  lift $ eraseCart g pos
   let pos' = translate h pos
-  Tile t' c' <- readArray g pos'
+  Tile t' c' <- lift $ readArray g pos'
   case c' of
-    Just _ -> pure . Left $ pos'
+    Just _ -> throwError pos'
     Nothing -> do
-      writeArray g pos $ Tile t Nothing
       let newCart = case t' of
             Intersection -> Cart (turn p h) (nextPlan p)
             Curve curve -> Cart (bounce curve h) p
             _ -> c
-      writeArray g pos' $ Tile t' (Just newCart)
-      pure . Right $ pos'
+      lift . writeArray g pos' $ Tile t' (Just newCart)
+      pure pos'
 
-runOneTick :: Grid s -> S.Set Coord -> ST s (Either Coord (S.Set Coord))
+runOneTick :: Grid s -> S.Set Coord -> ExceptT Coord (ST s) (S.Set Coord)
 runOneTick g carts = do
-  let moves = map (moveOneCart g) . S.toList $ carts
-  results <- sequenceA moves
-  pure . fmap S.fromList . sequenceA $ results
+  carts' <- foldM moveOne carts . S.toList $ carts
+  case S.toList carts' of
+    [x] -> throwError x
+    remainining -> pure carts'
+
+  where moveOne carts cart = if cart `S.notMember` carts
+          then pure carts
+          else (do cart' <- moveOneCart g cart
+                   pure (S.insert cart' (S.delete cart carts)))
+               `catchError` (\crash -> do
+                                lift $ eraseCart g crash
+                                pure . S.difference carts . S.fromList $ [cart, crash]
+                            )
+
+
+
 
 debug = False
 
@@ -122,9 +141,9 @@ runUntilCrash g = go
           when debug $ do
             assocs <- getAssocs g
             trace (showGrid assocs)$ pure ()
-          result <- runOneTick g carts
+          result <- runExceptT . runOneTick g $ carts
           case result of
-            Left crash -> pure crash
+            Left answer -> pure answer
             Right carts' -> go carts'
 
 part1 tiles = runST $ do
