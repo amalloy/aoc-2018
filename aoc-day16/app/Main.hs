@@ -2,14 +2,15 @@ module Main where
 
 import Control.Applicative (many, some)
 import Control.Arrow ((&&&))
+import Control.Monad (replicateM)
 import Data.Bits ((.&.), (.|.))
 import Data.Bool (bool)
 import Data.Char (isDigit, isSpace)
 import Data.Function (on)
 import qualified Data.IntMap.Strict as M
-import Data.List (foldl')
-import Debug.Trace
-import Text.Regex.Applicative (sym, psym, string, match, RE)
+import Data.List (foldl', intersect)
+import Data.Maybe (listToMaybe, fromMaybe)
+import Text.Regex.Applicative (sym, psym, string, match)
 
 type Input = ([Sample], [Instruction])
 
@@ -56,37 +57,50 @@ interpretations :: Sample -> [OpName]
 interpretations (Sample before after (Instruction _ args)) =
   [name | (name, op) <- ops, apply op args before == after]
 
-solve :: [Sample] -> M.IntMap Operation
-solve = fmap head . foldl' eliminate universe
-  where universe = M.fromList [(idx, map fst ops) |
-                               (idx, _) <- zip [0..] ops]
+disambiguate :: M.IntMap [OpName] -> [M.IntMap Operation]
+disambiguate table = case M.lookupGE 0 table of
+  Nothing -> pure mempty
+  Just (code, possibilities) -> do
+    let remaining = M.delete code table
+    name <- possibilities
+    let others = fmap (filter (/= name)) remaining
+    solution <- disambiguate others
+    pure $ M.insert code (fromMaybe (error "invalid opName") (lookup name ops)) solution
 
+solve :: [Sample] -> Maybe (M.IntMap Operation)
+solve = listToMaybe . disambiguate . foldl' eliminate universe
+  where universe :: M.IntMap [OpName]
+        universe = M.fromList [(idx, map fst ops) |
+                               (idx, _) <- zip [0..] ops]
+        eliminate :: M.IntMap [OpName] -> Sample -> M.IntMap [OpName]
+        eliminate table s@(Sample _ _ (Instruction op _)) =
+          M.adjust keep op table
+          where keep ops = intersect ops (interpretations s)
 
 part1 :: Input -> Int
 part1 = length . filter ((>= 3) . length) . map interpretations . fst
 
-part2 :: Input -> Int
-part2 (samples, program) =
-  (M.! 0) . foldl' interpret (M.fromList $ zip [0..3] (repeat 0)) $ program
-  where interpret regs (Instruction op args) = apply (opTable M.! op) args regs
-        opTable = solve samples
+part2 :: Input -> Maybe Int
+part2 (samples, program) = do
+  opTable <- solve samples
+  let interpret regs (Instruction op args) = apply (opTable M.! op) args regs
+  pure ((M.! 0) . foldl' interpret (M.fromList $ zip [0..3] (repeat 0)) $ program)
 
 
 parse :: String -> Maybe Input
 parse = match r
   where r = (,) <$> (spaces `between` sample) <*> (spaces *> (spaces `between` instr) <* spaces)
+        spaces = many (psym isSpace)
+        sample = (\b i a -> Sample b a i) <$> regs "Before" <*> instr <*> regs "After"
+        regs s = mkSample <$> (string s *> sym ':' *> spaces *> intList <* spaces)
+        mkSample = M.fromList . zip [0..]
+        intList = sym '[' *> (sym ',' *> spaces) `between` int <* sym ']'
+        int = read <$> some (psym isDigit)
+        between sep item = (:) <$> item <*> many (sep *> item)
+        instr = Instruction <$> int <*> args <* spaces
+        args = Arguments <$> sint <*> sint <*> sint
+        sint = spaces *> int
 
-spaces = many (psym isSpace)
-sample = (\b i a -> Sample b a i) <$> regs "Before" <*> instr <*> regs "After"
-regs s = mkSample <$> (string s *> sym ':' *> spaces *> intList <* spaces)
-mkSample = M.fromList . zip [0..]
-intList = sym '[' *> (sym ',' *> spaces) `between` int <* sym ']'
-int = read <$> some (psym isDigit)
-between sep item = (:) <$> item <*> many (sep *> item)
-instr = Instruction <$> int <* spaces <*> args <* spaces
-args = collect <$> spaces `between` int
-collect [a,b,c] = Arguments a b c
-collect xs = traceShow xs $ undefined
 
 main :: IO ()
 main = interact $ show . fmap (part1 &&& part2) . parse
