@@ -7,6 +7,7 @@ import Data.Bool (bool)
 import Data.Char (isDigit, isSpace)
 import Data.Function (on)
 import qualified Data.IntMap.Strict as M
+import Data.List (foldl')
 import Debug.Trace
 import Text.Regex.Applicative (sym, psym, string, match, RE)
 
@@ -55,12 +56,21 @@ interpretations :: Sample -> [OpName]
 interpretations (Sample before after (Instruction _ args)) =
   [name | (name, op) <- ops, apply op args before == after]
 
+solve :: [Sample] -> M.IntMap Operation
+solve = fmap head . foldl' eliminate universe
+  where universe = M.fromList [(idx, map fst ops) |
+                               (idx, _) <- zip [0..] ops]
+
 
 part1 :: Input -> Int
 part1 = length . filter ((>= 3) . length) . map interpretations . fst
 
 part2 :: Input -> Int
-part2 = const 0
+part2 (samples, program) =
+  (M.! 0) . foldl' interpret (M.fromList $ zip [0..3] (repeat 0)) $ program
+  where interpret regs (Instruction op args) = apply (opTable M.! op) args regs
+        opTable = solve samples
+
 
 parse :: String -> Maybe Input
 parse = match r
