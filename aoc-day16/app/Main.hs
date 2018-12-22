@@ -10,7 +10,7 @@ import Data.Function (on)
 import qualified Data.IntMap.Strict as M
 import Data.List (foldl', intersect)
 import Data.Maybe (listToMaybe, fromMaybe)
-import Text.Regex.Applicative (sym, psym, string, match)
+import Text.Regex.Applicative (sym, anySym, match)
 
 type Input = ([Sample], [Instruction])
 
@@ -88,18 +88,13 @@ part2 (samples, program) = do
 
 
 parse :: String -> Maybe Input
-parse = match r
-  where r = (,) <$> (spaces `between` sample) <*> (spaces *> (spaces `between` instr) <* spaces)
-        spaces = many (psym isSpace)
+parse = match r . concatMap words . lines . filter (not . (`elem` ",:[]"))
+  where r = (,) <$> many sample <*> many instr
         sample = (\b i a -> Sample b a i) <$> regs "Before" <*> instr <*> regs "After"
-        regs s = mkSample <$> (string s *> sym ':' *> spaces *> intList <* spaces)
-        mkSample = M.fromList . zip [0..]
-        intList = sym '[' *> (sym ',' *> spaces) `between` int <* sym ']'
-        int = read <$> some (psym isDigit)
-        between sep item = (:) <$> item <*> many (sep *> item)
-        instr = Instruction <$> int <*> args <* spaces
-        args = Arguments <$> sint <*> sint <*> sint
-        sint = spaces *> int
+        regs s = M.fromList . zip [0..] <$> (sym s *> replicateM 4 int)
+        int = read <$> anySym
+        instr = Instruction <$> int <*> args
+        args = Arguments <$> int <*> int <*> int
 
 
 main :: IO ()
