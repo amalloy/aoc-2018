@@ -167,10 +167,11 @@ main = do
   tiles <- fmap (fromMaybe [] . parse) $ getContents
   let bounds = (maximum . map fst $ coords, maximum . map snd $ coords)
       coords = map fst tiles
-  print . runST $ do
-    a <- newArray ((0, 0), bounds) $ Tile Empty Nothing
-    mapM_ (uncurry $ writeArray a) tiles
-    assocs <- getAssocs a
-    let hasCarts = S.fromList [ix | (ix, Tile _ (Just _)) <- assocs]
-    (y, x) <- runUntilCrash part1 a hasCarts
-    pure ((x, y) :: Coord)
+      answer = runST $ do
+        a <- newArray ((0, 0), bounds) $ Tile Empty Nothing
+        mapM_ (uncurry $ writeArray a) tiles
+        assocs <- getAssocs a
+        let hasCarts = S.fromList [ix | (ix, Tile _ (Just _)) <- assocs]
+        (y, x) <- runUntilCrash (\_ _ _ crash -> throwError crash) a hasCarts
+        pure ((x, y) :: Coord)
+  print answer
